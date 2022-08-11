@@ -37,6 +37,12 @@ func main() {
 	token := os.Getenv("BEARERTOKEN")
 	userID := os.Getenv("USERID")
 
+	lastLikeID, err := lastLikeID("demo.txt")
+	if err != nil {
+		fmt.Printf("couldn't get lastLikeID: %v", err)
+		return
+	}
+
 	params := url.Values{}
 	params.Add("tweet.fields", "entities")
 	params.Add("max_results", "100")
@@ -49,7 +55,7 @@ func main() {
 
 	res, err := client.Do(req)
 	if err != nil {
-		fmt.Errorf("couldn't connect to twitter client: %v", err)
+		fmt.Printf("couldn't connect to twitter client: %v", err)
 		return
 	}
 
@@ -57,28 +63,57 @@ func main() {
 
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		fmt.Errorf("couldn't read body: %v", err)
+		fmt.Printf("couldn't read body: %v", err)
 		return
 	}
 
 	var resData ResponseData
 	if err := json.Unmarshal([]byte(body), &resData); err != nil {
-		fmt.Errorf("couldn't unmarshal body:%v", err)
+		fmt.Printf("couldn't unmarshal body:%v", err)
 		return
 	}
 
+	var latestLikeID string
 	for _, v := range resData.Data {
+		if v.ID == lastLikeID {
+			fmt.Println(v.ID)
+			break
+		}
 		if len(v.Entities.Urls) > 0 && !includeStrInUrls(v.Entities.Urls, "twitter.com") {
 			fmt.Printf("id: %v, text: %v, urls: %v\n", v.ID, v.Text, v.Entities.Urls)
+			if latestLikeID == "" {
+				latestLikeID = v.ID
+			}
 		}
+	}
+
+	err = writeLatestLikeID("demo.txt", latestLikeID)
+	if err != nil {
+		fmt.Printf("couldn't write latestLikeID: %v", err)
+		return
 	}
 }
 
 func loadEnv() {
 	err := godotenv.Load(".env")
 	if err != nil {
-		fmt.Errorf("couldn't Load .env: %v", err)
+		fmt.Printf("couldn't Load .env: %v", err)
 	}
+}
+
+func lastLikeID(fileName string) (string, error) {
+	f, err := os.Open(fileName)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	buf := make([]byte, 64)
+	_, err = f.Read(buf)
+	if err != nil {
+		return "", err
+	}
+	return string(buf), nil
 }
 
 func includeStrInUrls(list []Urls, str string) bool {
@@ -88,4 +123,19 @@ func includeStrInUrls(list []Urls, str string) bool {
 		}
 	}
 	return false
+}
+
+func writeLatestLikeID(fileName, id string) error {
+	f, err := os.Create(fileName)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(id)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
