@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -76,11 +77,11 @@ func main() {
 	var latestLikeID string
 	for _, v := range resData.Data {
 		if v.ID == lastLikeID {
-			fmt.Println(v.ID)
 			break
 		}
 		if len(v.Entities.Urls) > 0 && !includeStrInUrls(v.Entities.Urls, "twitter.com") {
-			fmt.Printf("id: %v, text: %v, urls: %v\n", v.ID, v.Text, v.Entities.Urls)
+			// fmt.Printf("id: %v, text: %v, urls: %v\n", v.ID, v.Text, v.Entities.Urls)
+			fmt.Printf("id: %v, urls: %v\n", v.ID, v.Entities.Urls)
 			if latestLikeID == "" {
 				latestLikeID = v.ID
 			}
@@ -108,12 +109,13 @@ func lastLikeID(fileName string) (string, error) {
 	}
 	defer f.Close()
 
-	buf := make([]byte, 64)
-	_, err = f.Read(buf)
+	reader := bufio.NewReader(f)
+	line, _, err := reader.ReadLine()
 	if err != nil {
 		return "", err
 	}
-	return string(buf), nil
+
+	return string(line), nil
 }
 
 func includeStrInUrls(list []Urls, str string) bool {
