@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	notion "github.com/dstotijn/go-notion"
 	"github.com/joho/godotenv"
 )
 
@@ -30,6 +32,7 @@ type Entities struct {
 type Urls struct {
 	Url string `json:"url"`
 	ExpandedUrl string `json:"expanded_url"`
+	Title string `json:"title"`
 }
 
 func main() {
@@ -75,13 +78,13 @@ func main() {
 	}
 
 	var latestLikeID string
+	var resURLs []Urls
 	for _, v := range resData.Data {
 		if v.ID == lastLikeID {
 			break
 		}
 		if len(v.Entities.Urls) > 0 && !includeStrInUrls(v.Entities.Urls, "twitter.com") {
-			// fmt.Printf("id: %v, text: %v, urls: %v\n", v.ID, v.Text, v.Entities.Urls)
-			fmt.Printf("id: %v, urls: %v\n", v.ID, v.Entities.Urls)
+			resURLs = append(resURLs, v.Entities.Urls...)
 			if latestLikeID == "" {
 				latestLikeID = v.ID
 			}
@@ -92,6 +95,36 @@ func main() {
 	if err != nil {
 		fmt.Printf("couldn't write latestLikeID: %v", err)
 		return
+	}
+
+	notionToken := os.Getenv("NOTIONINTEGRATIONTOKEN")
+	notionDBID := os.Getenv("NOTIONDBID")
+
+	for _, v := range resURLs {
+		content := v.Title
+		url = v.ExpandedUrl
+
+		notionDatabasePagePropertyTitle := notion.DatabasePageProperty {
+			Title: []notion.RichText{{Text: &notion.Text{Content: content}}},
+		}
+
+		notionDatabasePagePropertyURL := notion.DatabasePageProperty {
+			URL: &url,
+		}
+
+		notionCreatePageParams := notion.CreatePageParams {
+			ParentType: notion.ParentTypeDatabase,
+			ParentID: notionDBID,
+			DatabasePageProperties: &notion.DatabasePageProperties{"title":notionDatabasePagePropertyTitle,"url":notionDatabasePagePropertyURL},
+		}
+
+		notionClient := notion.NewClient(notionToken)
+		page, err := notionClient.CreatePage(context.Background(), notionCreatePageParams)
+		if err != nil {
+			fmt.Printf("couldn't create notion page: %v\n", err)
+			return
+		}
+		fmt.Println(page)
 	}
 }
 
