@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -119,12 +120,11 @@ func main() {
 		}
 
 		notionClient := notion.NewClient(notionToken)
-		page, err := notionClient.CreatePage(context.Background(), notionCreatePageParams)
+		_, err := notionClient.CreatePage(context.Background(), notionCreatePageParams)
 		if err != nil {
 			fmt.Printf("couldn't create notion page: %v\n", err)
 			return
 		}
-		fmt.Println(page)
 	}
 }
 
@@ -145,6 +145,9 @@ func lastLikeID(fileName string) (string, error) {
 	reader := bufio.NewReader(f)
 	line, _, err := reader.ReadLine()
 	if err != nil {
+		if err == io.EOF {
+			return "", nil
+		}
 		return "", err
 	}
 
@@ -161,6 +164,10 @@ func includeStrInUrls(list []Urls, str string) bool {
 }
 
 func writeLatestLikeID(fileName, id string) error {
+	if id == "" {
+		return nil
+	}
+
 	f, err := os.Create(fileName)
 	if err != nil {
 		return err
